@@ -1,0 +1,196 @@
+#include<bits/stdc++.h>
+using namespace std;
+
+class Process {
+    public:
+    int id,at,bt,priority;
+};
+
+struct Ganttchart{
+    int id,start,end;
+};
+
+void FCFS(Process processes[], int n, int ct[], int tat[], int wt[], vector<Ganttchart>& gantt)
+{
+    int wait = 0;
+    for(int i=0;i<n;i++)
+    {
+        wt[i] = max(0, wait - processes[i].at);
+        ct[i] = wait + processes[i].bt;
+        tat[i] = ct[i] - processes[i].at;
+        gantt.push_back({processes[i].id, wait,ct[i]});
+        wait += processes[i].bt;
+    }
+}
+
+void SJF(Process processes[], int n, int ct[], int tat[], int wt[], vector<Ganttchart>& gantt)
+{
+    int completedTask = 0, remainingTime[n], currentTime = 0;
+    for(int i = 0;i<n;i++)
+        remainingTime[i] = processes[i].bt;
+    while(completedTask<n)
+    {
+        int shortestTask = -1, minBurst = INT_MAX;
+        for(int j = 0; j<n ;j++)
+        {
+            if(processes[j].at <= currentTime && remainingTime[j] > 0 && remainingTime[j] < minBurst)
+            {
+                minBurst = remainingTime[j];
+                shortestTask = j;
+            }
+        }
+        if (shortestTask == -1)
+        {
+            currentTime++;
+            continue;
+        }
+        remainingTime[shortestTask]--;
+        gantt.push_back({processes[shortestTask].id,currentTime,++currentTime});
+        if(remainingTime[shortestTask]==0)
+        {
+            completedTask++;
+            ct[shortestTask] = currentTime;
+            tat[shortestTask] = ct[shortestTask] - processes[shortestTask].at;
+            wt[shortestTask] = tat[shortestTask] - processes[shortestTask].bt;
+        }
+        
+    }
+}
+
+void npriority(Process processes[], int n, int ct[], int tat[], int wt[], vector<Ganttchart>& gantt)
+{
+    vector<bool>completed(n,false);
+    int currentTime = 0, completedTask = 0;
+
+    while(completedTask<n)
+    {
+        int highestpriorityidx = -1,highestpriority = INT_MIN;
+        for(int i = 0;i<n;i++)
+        {
+            if (!completed[i] && processes[i].at <= currentTime && processes[i].priority < highestpriority)
+            {
+                highestpriority = processes[i].priority;
+                highestpriorityidx = i;
+            }
+        }    
+        if(highestpriorityidx == -1)
+        {
+            currentTime++;
+            continue;
+        }    
+        gantt.push_back({processes[highestpriorityidx].id,currentTime,currentTime+=processes[highestpriorityidx].bt});
+        completed[highestpriorityidx] = true;
+        completedTask++;
+        ct[highestpriorityidx] = currentTime;
+        tat[highestpriorityidx] = ct[highestpriorityidx] - processes[highestpriorityidx].at;
+        wt[highestpriorityidx] = tat[highestpriorityidx] - processes[highestpriorityidx].bt;
+    }
+}
+
+void RoundRobin(Process processes[], int n,int ts,int ct[], int tat[],int wt[], vector<Ganttchart>& gantt)
+{
+    int remainingTime[n];
+    for(int i = 0;i<n;i++)
+        remainingTime[i] = processes[i].bt;
+
+    // Queue to hold the processes
+    queue<int>RQ;
+    vector<bool> inQueue(n, false);  // Track processes in the queue
+    int currentTime =0 , completedTask = 0;
+
+    // Add processes to the queue that have arrived at time 0
+    for(int i=0;i<n;i++)
+    {
+        if(processes[i].at<=currentTime)
+        {
+            RQ.push(i);
+            inQueue[i] = true; 
+        }
+
+    }
+
+    // Process until all tasks are completed
+    while (completedTask < n)
+    {
+        if(RQ.empty())
+        {
+            currentTime++;
+            // Add processes that arrive during this time
+            for (int i = 0; i < n; i++) 
+            {
+                if (processes[i].at <= currentTime && remainingTime[i] > 0)
+                {
+                    RQ.push(i);
+                    inQueue[i] = true;
+                }
+            }
+            continue;
+        }
+        int curr = RQ.front();
+        RQ.pop();
+        inQueue[curr] = false;
+
+        // Calculate the time to run for this process
+        int timeSlice = min(ts,remainingTime[curr]);
+        gantt.push_back({processes[curr].id, currentTime, currentTime + timeSlice});
+        currentTime += timeSlice;
+        remainingTime[curr] -= timeSlice;
+
+        if (remainingTime[curr] == 0) {
+            completedTask++;  
+            ct[curr] = currentTime;  
+            tat[curr] = ct[curr] - processes[curr].at;
+            wt[curr] = tat[curr] - processes[curr].bt; 
+        } else {
+            RQ.push(curr);  // Re-add the process to the queue if not completed
+            inQueue[curr] = true;
+        }
+    }
+
+}
+
+void printT(Process proc[], int n, int ct[], int tat[], int wt[])
+{
+    cout<<"ID\tAT\tBT\tCT\tTAT\tWT"<<endl;
+    for (int i = 0; i < n; i++)
+    {
+        cout << proc[i].id << "\t" << proc[i].at << "\t" << proc[i].bt << "\t" << ct[i] << "\t" << tat[i] << "\t" << wt[i] << endl;
+    }
+    
+}
+
+void printG(const vector<Ganttchart>& gantt)
+{
+    cout<<"\nGantt Chart: \n |";
+    for(const auto slot : gantt) 
+        cout<<"P"<<slot.id<<" | ";
+    cout<<"\n0";
+    for(const auto slot : gantt) 
+        cout<<"\t"<<slot.end;
+    cout<<"\n";
+}
+
+int main()
+{
+    Process proc[] = {{1,0,20},{2,1,2},{3,2,2}};
+    int n = sizeof(proc)/ sizeof(proc[0]);
+    int ct[n] = {};
+    int tat[n] = {};
+    int wt[n] = {};
+    int choice, ts;
+    vector<Ganttchart> gantt;
+    // while(true)
+    // {
+        gantt.clear();
+        // FCFS(proc,n,ct,tat,wt,gantt);
+        // SJF(proc,n,ct,tat,wt,gantt);
+        // cout << "Enter priority for each process (lower = higher):\n";
+        // for (int i = 0; i < n; i++) cin >> proc[i].priority;
+        // npriority(proc, n, ct, tat, wt, gantt);
+        cout << "Enter time quantum: "; cin >> ts;
+        RoundRobin(proc, n, ts, ct, tat, wt, gantt);
+        printT(proc,n,ct,tat,wt);
+        printG(gantt);
+    // }
+    return 0;
+}
