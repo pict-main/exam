@@ -101,7 +101,7 @@ int main() {
             int kpdtp = entry.getKpdtp();
             int paramNo = 1;
 
-            // Process positional parameters
+            // Process Parameters
             for (int i = 0; i < pp; ++i) {
                 if (paramNo < parts.size()) {
                     parts[paramNo] = parts[paramNo].substr(0, parts[paramNo].find(','));
@@ -111,7 +111,7 @@ int main() {
                 }
             }
 
-            // Process keyword parameters with defaults
+            // Process KPDT
             int j = kpdtp - 1;
             for (int i = 0; i < kp; ++i) {
                 if (j >= 0 && j < kpdt.size()) {
@@ -126,6 +126,13 @@ int main() {
                         aptabInverse[kpParts[0]] = paramNo;
                         j++;
                         paramNo++;
+                    }
+                    else{
+                        parts[paramNo] = parts[paramNo].substr(0, parts[paramNo].find(','));
+                        aptab[paramNo] = parts[paramNo];
+                        aptabInverse[parts[paramNo]] = paramNo;
+                        paramNo++;
+                        j++;
                     }
                 }
             }
@@ -186,8 +193,6 @@ int main() {
     mdtb.close();
     kpdtb.close();
     irb.close();
-
-    cout << "Pass 2 processing done!" << endl;
 
     return 0;
 }
