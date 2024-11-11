@@ -1,107 +1,130 @@
-#include <iostream>
-#include <fstream>
-#include <sstream>
-#include <map>
-#include <unordered_map>
-#include <vector>
-#include <iterator>
-#include <algorithm> // For std::remove_if
+import json
+import re as regex
 
-using namespace std;
+# Clear previous output
+open("./output/mdt.asm", "w").close()
 
-int main() {
-    ifstream br("input.txt");
-    ofstream mnt("mnt.txt");
-    ofstream mdt("mdt.txt");
-    ofstream kpdt("kpdt.txt");
-    ofstream pnt("pntab.txt");
-    ofstream ir("intermediate.txt");
+inputfile = open("./input/program.asm", "r")
+outputfile = open("./output/mdt.asm", "w")
 
-    if (!br.is_open() || !mnt.is_open() || !mdt.is_open() || !kpdt.is_open() || !pnt.is_open() || !ir.is_open()) {
-        cerr << "Error opening one or more files!" << endl;
-        return 1;
-    }
+pattern = r'\s+'
 
-    unordered_map<string, int> pntab;
-    string line;
-    string Macroname;
-    int mdtp = 1, kpdtp = 0, paramNo = 1, pp = 0, kp = 0, flag = 0;
+def get_key(val, dict):
+    for key, value in dict.items():
+        if val == value:
+            return key
+    return None
 
-    while (getline(br, line)) {
-        istringstream iss(line);
-        vector<string> parts((istream_iterator<string>(iss)), istream_iterator<string>());
+# Flags
+mSign = False
+mDef = False
 
-        if (parts[0] == "MACRO" || parts[0] == "macro") {
-            flag = 1;
-            if (!getline(br, line)) break;
-            istringstream iss2(line);
-            vector<string> parts2((istream_iterator<string>(iss2)), istream_iterator<string>());
-            Macroname = parts2[0];
+# Tables
+mntab = {}
+kpdtab = {}
+pntab = {}
 
-            if (parts2.size() <= 1) {
-                mnt << parts2[0] << "\t" << pp << "\t" << kp << "\t" << mdtp << "\t" << (kp == 0 ? kpdtp : (kpdtp + 1)) << "\n";
-                continue;
-            }
+# Variables
+macroName = ""
+kpdtIndex = 1
+mntIndex = 1
+kpdtLoc = 1
+mdtLoc = 0
 
-            for (size_t i = 1; i < parts2.size(); ++i) {
-                string param = parts2[i];
-                param.erase(remove_if(param.begin(), param.end(), [](char c) { return c == '&' || c == ','; }), param.end());
-
-                if (param.find('=') != string::npos) {
-                    ++kp;
-                    size_t pos = param.find('=');
-                    string keywordParam = param.substr(0, pos);
-                    string value = param.substr(pos + 1);
-                    pntab[keywordParam] = paramNo++;
-                    kpdt << keywordParam << "\t" << value << "\n";
-                } else {
-                    pntab[param] = paramNo++;
-                    ++pp;
+for line in inputfile:
+    line = line.strip()
+    
+    if line == "\n":
+        continue
+    
+    cmd = regex.split(" ", line.rstrip())
+    
+    if len(cmd) == 1 and cmd[0] == "MACRO":
+        mSign = True
+        continue
+    
+    if mSign:
+        macroName = cmd[0]
+        pntab[macroName] = {}
+        paramCnt = 0
+        pp = 0
+        kp = 0
+        
+        for parameter in cmd:
+            parameter = parameter.replace(",", "")
+            
+            if '&' in parameter and '=' not in parameter:
+                pp += 1
+                paramCnt += 1
+                paramName = parameter[1:]
+                pntab[macroName][paramCnt] = paramName
+            
+            elif '&' in parameter and '=' in parameter:
+                paramCnt += 1
+                if kp == 0:
+                    kpdtLoc = kpdtIndex
+                kp += 1
+                
+                eqIndex = parameter.index("=")
+                paramName = parameter[1:eqIndex]
+                paramDefval = parameter[eqIndex + 1:]
+                
+                pntab[macroName][paramCnt] = paramName
+                
+                kpdtab[kpdtIndex] = {
+                    "index": kpdtIndex,
+                    "name": macroName,
+                    "value": paramDefval if paramDefval else '----'
                 }
-            }
-
-            mnt << parts2[0] << "\t" << pp << "\t" << kp << "\t" << mdtp << "\t" << (kp == 0 ? kpdtp : (kpdtp + 1)) << "\n";
-            kpdtp += kp;
-            kp = 0;
-            pp = 0;
-
-        } else if (parts[0] == "MEND" || parts[0] == "mend") {
-            mdt << line << "\n";
-            flag = kp = pp = 0;
-            ++mdtp;
-            paramNo = 1;
-
-            pnt << Macroname << ":\t";
-            for (const auto& pair : pntab) {
-                pnt << pair.first << "\t";
-            }
-            pnt << "\n";
-            pntab.clear();
-
-        } else if (flag == 1) {
-            for (const auto& part : parts) {
-                if (part.find('&') != string::npos) {
-                    string param = part;
-                    param.erase(remove_if(param.begin(), param.end(), [](char c) { return c == '&' || c == ','; }), param.end());
-                    mdt << "(P," << pntab[param] << ")\t";
-                } else {
-                    mdt << part << "\t";
-                }
-            }
-            mdt << "\n";
-            ++mdtp;
-        } else {
-            ir << line << "\n";
+                
+                kpdtIndex += 1
+            
+        mSign = False
+        mDef = True
+        
+        mntab[mntIndex] = {
+            'index': mntIndex,
+            'name': macroName,
+            'pp': pp,
+            'kp': kp,
+            'kpdtp': kpdtLoc if kpdtLoc else '----',
+            'mdtp': mdtLoc if mdtLoc else '----'
         }
-    }
+        
+        mntIndex += 1
+        continue
+    
+    if mDef:
+        mdtLoc += 1
+        callLine = ""
+        
+        for command in cmd:
+            command = command.replace(",", "")
+            
+            if '&' in command:
+                replParamvalue = f"(p,{get_key(command[1:], pntab[macroName])})"
+                callLine += replParamvalue + " "
+            else:
+                callLine += command + " "
+        
+        outputfile.write(f"{callLine.strip()} \n")
+        continue
+    
+    if len(cmd) == 1 and cmd[0] == "MEND":
+        mDef = False
+        mdtLoc += 1
+        outputfile.write("MEND\n")
+        continue
 
-    br.close();
-    mnt.close();
-    mdt.close();
-    kpdt.close();
-    pnt.close();
-    ir.close();
+# Writing tables to JSON files
+with open("output/kpdtab.json", "w") as file:
+    json.dump(kpdtab, file, indent=4)
 
-    cout << "Macro Pass1 Processing done. :)" << endl;
-    return 0;
-}
+with open("output/mntab.json", "w") as file:
+    json.dump(mntab, file, indent=4)
+
+with open("output/pntab.json", "w") as file:
+    json.dump(pntab, file, indent=4)
+
+inputfile.close()
+outputfile.close()
