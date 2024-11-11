@@ -1,13 +1,26 @@
-import json
 import re as regex
+import json
 
-# Clear previous output
-open("./output/mdt.asm", "w").close()
+(open("./output/mdt.asm", "w")).close()
 
 inputfile = open("./input/program.asm", "r")
-outputfile = open("./output/mdt.asm", "w")
+outputfile = open("./output/mdt.asm", "a")
+# Flags
+mSign = False
+mDef = False
 
-pattern = r'\s+'
+# table
+mntab = {}
+kpdtab = {}
+pntab = {}
+
+# Variable
+macroName = ""
+kpdtIdx = 1
+mntIdx = 1
+kpdtLoc = 1
+mdtLoc = 0
+
 
 def get_key(val, dict):
     for key, value in dict.items():
@@ -15,116 +28,105 @@ def get_key(val, dict):
             return key
     return None
 
-# Flags
-mSign = False
-mDef = False
-
-# Tables
-mntab = {}
-kpdtab = {}
-pntab = {}
-
-# Variables
-macroName = ""
-kpdtIndex = 1
-mntIndex = 1
-kpdtLoc = 1
-mdtLoc = 0
 
 for line in inputfile:
     line = line.strip()
-    
+
     if line == "\n":
         continue
-    
+
     cmd = regex.split(" ", line.rstrip())
-    
+
     if len(cmd) == 1 and cmd[0] == "MACRO":
         mSign = True
         continue
-    
+
     if mSign:
         macroName = cmd[0]
         pntab[macroName] = {}
         paramCnt = 0
         pp = 0
         kp = 0
-        
         for parameter in cmd:
-            parameter = parameter.replace(",", "")
-            
-            if '&' in parameter and '=' not in parameter:
-                pp += 1
+            if "," in parameter:
+                parameter = parameter.replace(",", "")
+
+            if "&" in parameter and "=" not in parameter:
                 paramCnt += 1
+                pp += 1
+
                 paramName = parameter[1:]
                 pntab[macroName][paramCnt] = paramName
-            
-            elif '&' in parameter and '=' in parameter:
+
+            elif "&" in parameter and "=" in parameter:
                 paramCnt += 1
                 if kp == 0:
-                    kpdtLoc = kpdtIndex
+                    kpdtLoc = kpdtIdx
                 kp += 1
-                
-                eqIndex = parameter.index("=")
-                paramName = parameter[1:eqIndex]
-                paramDefval = parameter[eqIndex + 1:]
-                
+
+                Equindx = parameter.index("=")
+                paramName = parameter[1:Equindx]
+                paramDefVal = parameter[Equindx + 1 :]
+
                 pntab[macroName][paramCnt] = paramName
-                
-                kpdtab[kpdtIndex] = {
-                    "index": kpdtIndex,
-                    "name": macroName,
-                    "value": paramDefval if paramDefval else '----'
+
+                kpdtab[kpdtIdx] = {
+                    "index": kpdtIdx,
+                    "name": paramName,
+                    "value": paramDefVal if paramDefVal else "----",
                 }
-                
-                kpdtIndex += 1
-            
+
+                kpdtIdx += 1
+
         mSign = False
         mDef = True
-        
-        mntab[mntIndex] = {
-            'index': mntIndex,
-            'name': macroName,
-            'pp': pp,
-            'kp': kp,
-            'kpdtp': kpdtLoc if kpdtLoc else '----',
-            'mdtp': mdtLoc if mdtLoc else '----'
+
+        mntab[mntIdx] = {
+            "index": mntIdx,
+            "name": macroName,
+            "kp": kp,
+            "pp": pp,
+            "kpdtIdx": kpdtLoc if kpdtLoc else "----",
+            "mdtLoc": mdtLoc ,
         }
-        
-        mntIndex += 1
-        continue
-    
-    if mDef:
-        mdtLoc += 1
-        callLine = ""
-        
-        for command in cmd:
-            command = command.replace(",", "")
-            
-            if '&' in command:
-                replParamvalue = f"(p,{get_key(command[1:], pntab[macroName])})"
-                callLine += replParamvalue + " "
-            else:
-                callLine += command + " "
-        
-        outputfile.write(f"{callLine.strip()} \n")
-        continue
-    
-    if len(cmd) == 1 and cmd[0] == "MEND":
-        mDef = False
-        mdtLoc += 1
-        outputfile.write("MEND\n")
+        mntIdx+=1
         continue
 
-# Writing tables to JSON files
+    if mDef:
+        mdtLoc += 1
+
+        callLine = ""
+
+        for command in cmd:
+            if "," in command:
+                command = command.replace(",", "")
+
+            if "&" in command:
+                replParamVal = f"(P,{get_key(command[1:],pntab[macroName])})"
+
+                callLine += replParamVal
+
+            else:
+                callLine += command + " "
+
+        outputfile.write(callLine + "\n")
+        continue
+
+    if len(cmd) == 1 and cmd[0] == "MEND":
+        mDef = False
+        outputfile.write("MEND\n")
+        mdtLoc += 1
+
+        continue
+
 with open("output/kpdtab.json", "w") as file:
     json.dump(kpdtab, file, indent=4)
+file.close()
 
 with open("output/mntab.json", "w") as file:
     json.dump(mntab, file, indent=4)
+file.close()
 
 with open("output/pntab.json", "w") as file:
     json.dump(pntab, file, indent=4)
-
-inputfile.close()
-outputfile.close()
+file.close()
