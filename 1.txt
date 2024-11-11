@@ -1,246 +1,305 @@
-#include<bits/stdc++.h>
-using namespace std;
-map<string,string>ISTab={
-    {"STOP","(IS,00)"},
-    {"ADD","(IS,01)"},
-    {"SUB","(IS,02)"},
-    {"MUL","(IS,03)"},
-    {"MOVER","(IS,04)"},
-    {"MOVEM","(IS,05)"},
-    {"COMP","(IS,06)"},
-    {"BC","(IS,07)"},
-    {"DIV","(IS,08)"},
-    {"READ","(IS,09)"},
-    {"PRINT","(IS,10)"}
-};
+import json
+import re as regex
 
-map<string,string>RegTab={
-    {"AREG","01"},
-    {"BREG","02"},
-    {"CREG","03"},
-    {"DREG","04"}
-};
+with open("./Pass-1/output/ic.txt",'w') as file:
+    pass
+file.close()
 
-map<string,string>CCTab={
-    {"LT","01"},
-    {"LE","02"},
-    {"EQ","03"},
-    {"GT","04"},
-    {"GE","05"},
-    {"ANY","06"}
-};
-
-class Pass1{
-    vector<vector<string>>SymTab;
-    vector<vector<string>>LitTab;
-    vector<int>PoolTab;
-    vector<int>LcTab;
-    string ic;
-    int lc;
-    int litIndex;
-    int poolIndex;
-
-    public:
-    Pass1(){
-        lc=0;
-        litIndex=0;
-        poolIndex=0;
-    }
-
-    void updSymTab(vector<string>pair){
-        for(auto entry:SymTab){
-            if(entry[0]==pair[0]){
-                entry[1]=pair[1];
-                return;
-            }
-        }
-        SymTab.push_back(pair);
-    }
-
-    int LcAdressTab(const string &word){
-        for(const auto entry:SymTab){
-            if(entry[0]==word){
-                return stoi(entry[1]);
-            }
-        }
-        return -1;
-    }
-
-
-    
-    int IndexTab(const string &word){
-        for(size_t pos=0;pos<SymTab.size();pos++){
-            if(SymTab[pos][0]==word){
-                return static_cast<int>(pos);
-            }
-        }
-        return -1;
-    }
-
-
-    void process(){
-        ifstream File("Testcase.txt");
-        if(!File.is_open()){
-            cerr<<"Error opening File"<<endl;
-            return;
-        }
-
-        string line;
-        while(getline(File,line)){
-            string word;
-            vector<string>words;
-            stringstream ss(line);
-            while(getline(ss,word,'\t')){
-                words.push_back(word);
-            }
-
-            if(!words.empty()){
-                vector<string>pair={words[0],to_string(lc)};
-                updSymTab(pair);
-            }
-
-            if(words[1]=="START"){
-                    lc=stoi(words[2]);
-                    LcTab.push_back(lc);
-                    ic+="(AD,01)\t(C,"+to_string(lc)+")\n";
-                
-            }
-
-            if(words[1]=="LTORG"){
-                for(int i=poolIndex;i<litIndex;i++){
-                    LitTab[i][1]=to_string(lc);
-                    lc++;
-                    LcTab.push_back(lc);
-                }
-                ic+="(AD,05)\n";
-                ic+='\n';
-                PoolTab.push_back(poolIndex);
-                poolIndex=litIndex;
-            }
-
-            if(words[1]=="END"){
-                for(int i=poolIndex;i<litIndex;i++){
-                    LitTab[i][1]=to_string(lc);
-                    lc++;
-                    LcTab.push_back(lc);
-                }
-                ic+="(AD,02)\n";
-                ic+='\n';
-                PoolTab.push_back(poolIndex);
-                poolIndex=litIndex;
-            }
-
-            if(words[1]=="DC"){
-                ic+="(DL,01)\t(C,"+words[2]+")\n";
-                lc++;
-                LcTab.push_back(lc);
-            }
-
-            if(words[1]=="DS"){
-                try{
-                    ic+="(DL,02)\t(C,"+words[2]+")\n";
-                    lc+=stoi(words[2]);
-                }
-                catch(const std::invalid_argument &e){
-                    cerr<<e.what();
-                }
-                LcTab.push_back(lc);
-            }
-
-            if(words[1]=="ORIGIN"){
-                
-                try{
-                    string word=words[2].substr(0,words[2].find('+'));
-                    int loc=LcAdressTab(word);
-                    int add=stoi(words[2].substr(words[2].find('+')+1));
-                    ic+="(AD,03)\t(S,"+to_string(IndexTab(word))+")+"+to_string(add)+"\n";
-                    lc=loc+add;
-                    LcTab.push_back(lc);
-                }
-                catch(const std::invalid_argument &e){
-                    cerr<<e.what();
-                }
-
-                
-            }
-
-            if(words[1]=="EQU"){
-                try{
-                    string word=words[2].substr(0,words[2].find('+'));
-                    int loc=LcAdressTab(word);
-                    int add=stoi(words[2].substr(words[2].find('+')+1));
-                    ic+="(S,"+to_string(IndexTab(words[0]))+")\t"+"(AD,03)\t(S,"+to_string(IndexTab(word))+")+"+to_string(add)+"\n";
-                    updSymTab({words[0],to_string(loc+add)});
-                }
-                catch(const std::invalid_argument &e){
-                    cerr<<e.what();
-                }
-            }
-
-            if(ISTab.find(words[1])!=ISTab.end()){
-                ic+=ISTab[words[1]]+" ";
-                for(size_t i=2;i<words.size();i++){
-                    if(RegTab.find(words[i])!=RegTab.end()){
-                        ic+=RegTab[words[i]]+" ";
-                    }
-                    else if(CCTab.find(words[i])!=CCTab.end()){
-                        ic+=CCTab[words[i]]+" ";
-                    }
-                    else if(words[i].find('=')==string::npos){
-                        int symloc=LcAdressTab(words[i]);
-                        if(symloc==-1){
-                            updSymTab({words[i],to_string(lc)});
-                        }
-                        int index=IndexTab(words[i]);
-                        ic+="(S,"+to_string(index+1)+")\t";
-                    }
-                    else{
-                        LitTab.push_back({words[i],"-1"});
-                        litIndex++;
-                        ic+="(L,"+to_string(litIndex)+")\t";
-                    }
-                }
-                lc++;
-                LcTab.push_back(lc);
-                ic+='\n';
-            }
-            
-        }
-        File.close();
-        ofstream ICFile("ICoutput.txt");
-        ICFile<<ic;
-        ICFile.close();
-
-        ofstream SymFile("SymOutput.txt");
-        for(auto &entry:SymTab){
-            for(auto &it:entry ){
-                SymFile<<it<<'\t';
-            }
-            SymFile<<"\n";
-        }
-
-        SymFile.close();
-
-        ofstream LitFile("LitOutput.txt");
-        for(auto &entry:LitTab){
-            for(auto &it:entry){
-                LitFile<<it<<"\t";
-            }
-            LitFile<<"\n";
-        }
-
-        LitFile.close();
-
-        ofstream PoolFile("PoolOutput.txt");
-        for(auto &entry:PoolTab){
-            PoolFile<<entry<<"\n";
-        }
-        PoolFile.close();
-    }
-
-};
-int main(){
-    Pass1 obj;
-    obj.process();
-    return 0;
+mnemonics = {
+    "stop": "(IS, 00)",
+    "add": "(IS, 01)",
+    "sub": "(IS, 02)",
+    "mult": "(IS, 03)",
+    "mover": "(IS, 04)",
+    "movem": "(IS, 05)",
+    "comp": "(IS, 06)",
+    "bc": "(IS, 07)",
+    "div": "(IS, 08)",
+    "read": "(IS, 09)",
+    "print": "(IS, 10)",
+    "dc": "(DL, 01)",
+    "ds": "(DL, 02)"
 }
+
+registers = {
+    "areg": "01",
+    "breg": "02",
+    "creg": "03",
+    "dreg": "04"
+}
+
+conditionCodes = {
+    "lt": 1,
+    "le": 2,
+    "eq": 3,
+    "gt": 4,
+    "ge": 5,
+    "any": 6
+}
+
+directives = {
+    "start": "(AD, 01)",
+    "end": "(AD, 02)",
+    "origin": "(AD, 03)",
+    "equ": "(AD, 04)",
+    "ltorg": "(AD, 05)"
+}
+
+
+pattern=r'\s+'
+
+file=open("input.asm",'r')
+
+icFile=open("Pass-1/output/ic.txt","a")
+
+label = ""
+instruction = ""
+op1 = ""
+op2 = ""
+op1code = ""
+op2code = ""
+current = 0
+previous = 0
+flag = False
+stcnt = 1
+ltcnt = 1
+symbolTable = {}
+literalTable = {}
+
+
+for line in file:
+    label = ""
+    instruction = ""
+    op1 = ""
+    op2 = ""
+    op1code = ""
+    op2code = ""
+    var = ""
+
+    if line=="\n": continue
+    
+    line=line.strip()
+    
+    cmd=regex.split(pattern,line.rstrip())
+    
+    temp=[]
+    for i in cmd:
+        temp.append(i.lower())
+    
+    cmd = temp
+    
+    if len(cmd)==4:
+        label=cmd[0]
+        instruction=cmd[1]
+        op1=cmd[2]
+        op2=cmd[3]
+        
+    elif len(cmd)==3:
+        cmdIndex=-1
+        
+        for command in cmd:
+            if command in mnemonics:
+                if command=="dc" or command=="ds":
+                    var=cmd[0]
+                    op1=cmd[2]
+                    cmdIndex=1
+                    flag=True
+                    break
+                else:
+                    cmdIndex=cmd.index(command)
+                    break
+            elif command in directives:
+                cmdIndex=cmd.index(command)
+                break
+        
+        instruction = cmd[cmdIndex]
+        if cmdIndex==1:
+            op1=cmd[cmdIndex-1]
+            op2=cmd[cmdIndex+1]
+        elif flag==False:
+            op1=cmd[1]
+            op2=cmd[2]
+            
+    elif len(cmd)==2:
+        cmdIndex=-1
+        
+        for command in cmd:
+            if command in directives:
+                cmdIndex=cmd.index(command)
+                break
+            elif command in mnemonics:
+                cmdIndex=cmd.index(command)
+                break
+        
+        instruction=cmd[cmdIndex]
+        
+        if cmdIndex == 0:
+            op1=cmd[1]
+        else:
+            label=cmd[0]
+            
+    
+    else :
+        instruction = cmd[0]
+        
+    
+    if instruction in directives:
+        if instruction == "start":
+            print("HIIIII")
+            if len(cmd)==1:
+                current=0
+            else:
+                current =int(cmd[1])        
+            opcode= directives.get(instruction)
+            op1code= f"(C,{current})"
+            
+            icFile.write(f"     {opcode} {op1code}\n")
+        
+        elif instruction == "end":
+            opcode=directives.get(instruction)
+            
+            icFile.write(f"     {opcode}\n")
+        
+        elif instruction == "origin":
+            opcode=directives.get(instruction)
+            op1=cmd[1]
+            
+            if "+" in op1:
+                label= op1.split("+")[0]
+                offset=op1.split("+")[1]
+                previous=current
+                op1code=f"(S, {symbolTable.get(label)[0]})+{offset}"
+                current= symbolTable.get(label)[2]+int(offset)
+                
+                icFile.write(f"     {opcode} {op1code}\n")
+            
+            if "-" in op1:
+                label= op1.split("-")[0]
+                offset=op1.split("-")[1]
+                previous=current
+                op1code=f"(S, {symbolTable.get(label)[0]})-{offset}"
+                current= symbolTable.get(label)[2]-int(offset)
+                
+                icFile.write(f"     {opcode} {op1code}\n")
+            
+            else:
+                previous=current
+                current= symbolTable.get(label)[2]
+                op1code=f"(S, {symbolTable.get(label)[0]})"
+                icFile.write(f"     {opcode} {op1code}\n")
+                
+        elif instruction == "equ":
+            op1=cmd[1]
+            op2=cmd[2]
+            
+            symbolTable.get(op1)[2]=symbolTable.get(op2)[2]
+            
+        elif instruction == "ltorg":
+            for literal,[index, lt, value] in literalTable.items():
+                if value==-1:
+                    previous=current
+                    current+=1
+                    literalTable[literal][2] = previous
+                    opcode = f"(DL,01)"
+                    op1code=f"(C,{lt})"
+                    icFile.write(f"{previous} {opcode} {op1code}\n")
+                
+                else:
+                    pass
+    
+    elif instruction in mnemonics:
+        if instruction == "dc" or instruction=="ds":
+            op2code =""
+        
+        opcode = mnemonics.get(instruction)
+        previous = current
+        current+=1
+        
+        if label:
+            if label in symbolTable:
+                symbolTable[label][2]= previous
+            else:
+                symbolTable[label] = [stcnt, label, previous]
+                stcnt+=1
+        
+        if instruction == "bc":
+            op1code = conditionCodes.get(op1)
+        
+        if op1.isdigit():
+            op1code = f"(C,{op1})"
+        
+        elif op1 in registers:
+            op1code = registers.get(op1)
+        
+        elif "=" in op1:
+            literal = op1.split("=")[1][1]
+            
+            if literal in literalTable:
+                op1code = f"(L, {literalTable.get(op1)[0]})"
+            
+            else:
+                literalTable[literal]= [ltcnt, literal, -1]
+                op1code = f"(L, {ltcnt})"
+                ltcnt+=1
+        
+        else:
+            if op1 in symbolTable:
+                op1code = f"(S, {symbolTable.get(op1)[0]})"
+            else:
+                symbolTable[op1]= [stcnt, op1, -1]
+                op1code = f"(S, {stcnt})"
+                stcnt+=1
+                
+        
+        if instruction =="dc" or instruction=="ds":
+            symbolTable[var][2]= previous
+            
+        elif op2.isdigit():
+            op2code = f"(C,{op2})"
+        
+        elif op2 in registers:
+            op2code = registers.get(op2)
+        
+        elif "=" in op2:
+            literal = op2.split("=")[1][1]
+            
+            if literal in literalTable:
+                op2code = f"(L, {literalTable.get(literal)[0]})"
+            
+            else:
+                literalTable[literal]= [ltcnt, literal, -1]
+                op2code = f"(L, {ltcnt})"
+                ltcnt+=1
+        
+        else:
+            if op2 in symbolTable:
+                op2code = f"(S, {symbolTable.get(op2)[0]})"
+            elif op2 and instruction!="dc":
+                symbolTable[op2]= [stcnt, op2, previous]
+                op2code = f"(S, {stcnt})"
+                stcnt+=1
+                
+        if instruction=="stop":
+            icFile.write(f"     {opcode} {op1code}")
+        else:
+            icFile.write(f"{previous} {opcode} {op1code} {op2code}\n")
+            
+    else:
+        print("invalid instruction",instruction)
+        exit(0)
+
+for literal, [index, lt ,value] in literalTable.items():
+    if value == -1:
+        literalTable.get(lt)[2] = current
+        previous= current
+        current +=1
+        
+        opcode = "(DL,01)"
+        op1code= f"(C,{lt})"
+        icFile.write(f"{previous} {opcode} {op1code}\n")
+
+with open("./Pass-1/output/literal.json",'w') as json_file:
+    json.dump(literalTable,json_file, indent=4)        
+    
+with open("./Pass-1/output/symbols.json","w") as json_file:
+    json.dump(symbolTable,json_file,indent=4)
