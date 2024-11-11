@@ -1,94 +1,131 @@
-#include <iostream>
+#include <bits/stdc++.h>
 using namespace std;
 
-class Process {
+class Process
+{
 public:
     int id;
-    string pname;
+    string name;
 
-    Process() : id(0), pname("") {}
+    Process()
+    {
+        id = 0;
+        name = "";
+    }
 };
 
-class Election {
-    Process processes[10];  // Array for up to 10 processes
-    bool isCrashed[10];     // Array to track crashed processes
-    int num;                // Number of processes
-
+class Election
+{
 public:
-    void inputProcesses() {
-        cout << "Enter number of processes: ";
+    Process process[10];
+    bool isCrashed[10];
+    int num;
+
+    void inputProcess()
+    {
+        cout << "Enter The number of Process";
+
         cin >> num;
 
-        for (int i = 0; i < num; i++) {
-            cout << "Enter process name: ";
-            cin >> processes[i].pname;
-            cout << "Enter process ID: ";
-            cin >> processes[i].id;
-            isCrashed[i] = false;  // Initially, no process is crashed
+        for (int i = 0; i < num; i++)
+        {
+            process[i].id = i + 1;
+            cout << "Enter process name";
+            cin >> process[i].name;
+
+            isCrashed[i] = false;
         }
+        return;
     }
 
-    void crashHighestProcess() {
-        int highestIndex = 0;
-        for (int i = 1; i < num; i++) {
-            if (processes[i].id > processes[highestIndex].id) {
-                highestIndex = i;
+    void CrashHighestProcess()
+    {
+        int maxId = -1;
+
+        for (int i = 0; i < num; i++)
+        {
+            if (process[i].id > maxId && !isCrashed[i])
+            {
+                maxId = i;
             }
         }
-        isCrashed[highestIndex] = true;
-        cout << "Process " << processes[highestIndex].pname << " with ID " 
-             << processes[highestIndex].id << " has crashed.\n";
+        isCrashed[maxId] = true;
+        cout << "Process with id " << maxId + 1 << " has crashed";
+
+        return;
     }
 
-    void bully(int initiatorId) {
+    void bully(int initiatorId)
+    {
         int maxId = initiatorId;
-        
-        for (int i = 0; i < num; i++) {
-            if (processes[i].id > initiatorId && !isCrashed[i]) {
-                cout << "Process " << initiatorId << " sends election message to Process " << processes[i].id << endl;
-                if (processes[i].id > maxId) {
-                    maxId = processes[i].id;
+        bool coordinatorfound = false;
+
+        while (!coordinatorfound)
+        {
+            bool electionProgress = false;
+
+            for (int i = 0; i < num; i++)
+            {
+                if (process[i].id > maxId && !isCrashed[i])
+                {
+                    cout << "Process " << process[initiatorId].id << "has sent request to" << process[i].id;
+                    maxId = process[i].id;
+                    initiatorId = maxId;
+                    electionProgress = true;
                 }
             }
+            if (!electionProgress)
+            {
+                coordinatorfound = true;
+            }
         }
-
-        cout << "New coordinator is Process " << maxId << endl;
+        cout << "New coordinator process is " << maxId << endl;
     }
 
-    void ring(int initiatorId) {
-        cout << "Ring message: [ ";
+    void RingMethod(int initiatorId)
+    {
         int startPos = -1;
-        
-        // Find the initiator's position
-        for (int i = 0; i < num; i++) {
-            if (processes[i].id == initiatorId) {
+        for (int i = 0; i < num; i++)
+        {
+            if (process[i].id == initiatorId)
+            {
                 startPos = i;
                 break;
             }
         }
+        if (startPos == -1)
+        {
+            cout << "Initiator Process not found" << endl;
+            return;
+        }
 
-        // Go around the ring from the initiator position
         int maxId = initiatorId;
-        for (int i = 0; i < num; i++) {
+        cout << "Ring : [";
+
+        for (int i = 0; i < num; i++)
+        {
             int index = (startPos + i) % num;
-            if (!isCrashed[index]) {
-                cout << processes[index].id << " ";
-                if (processes[index].id > maxId) {
-                    maxId = processes[index].id;
+
+            if (!isCrashed[index])
+            {
+                int currentId = process[index].id;
+                cout << currentId << " ";
+
+                if (currentId > maxId)
+                {
+                    maxId = currentId;
                 }
             }
         }
-        cout << "]\n";
-        
-        cout << "New coordinator is Process " << maxId << endl;
+        cout<<"]";
+        cout<<"New coordinator is "<<maxId;
     }
 };
-
 int main() {
     Election election;
-    election.inputProcesses();
+    election.inputProcess();
 
-    election.crashHighestProcess();
+    election.CrashHighestProcess();
 
     int initiatorId;
     cout << "Enter the ID of the process which detects the crash: ";
@@ -102,7 +139,7 @@ int main() {
         if (choice == 1) {
             election.bully(initiatorId);
         } else if (choice == 2) {
-            election.ring(initiatorId);
+            election.RingMethod(initiatorId);
         } else if (choice == 3) {
             cout << "Exiting...\n";
             break;
