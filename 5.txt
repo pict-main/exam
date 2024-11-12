@@ -115,13 +115,15 @@ void RoundRobin(Process processes[], int n, int ts, int ct[], int tat[], int wt[
     }
 
     queue<int> ReadyQue;
+    vector<bool> inQueue(n, false);  // Tracks if a process is already in the queue
 
+    // Initialize the queue with processes that have already arrived at time 0
     for (int i = 0; i < n; i++)
     {
-
         if (processes[i].at <= CurrentTime)
         {
             ReadyQue.push(i);
+            inQueue[i] = true;
         }
     }
 
@@ -130,36 +132,53 @@ void RoundRobin(Process processes[], int n, int ts, int ct[], int tat[], int wt[
         if (ReadyQue.empty())
         {
             CurrentTime++;
+            // Add newly arrived processes to the queue if ReadyQue was empty
             for (int i = 0; i < n; i++)
             {
-                if (processes[i].at <= CurrentTime && RemainingTime[i]>0)
+                if (processes[i].at <= CurrentTime && RemainingTime[i] > 0 && !inQueue[i])
                 {
                     ReadyQue.push(i);
+                    inQueue[i] = true;
                 }
             }
             continue;
         }
 
-        int curr=ReadyQue.front();
+        int curr = ReadyQue.front();
         ReadyQue.pop();
+        inQueue[curr] = false;
 
-
-        int timeSlice= min(RemainingTime[curr],ts);
-        gantt.push_back({processes[curr].id, CurrentTime, CurrentTime + timeSlice });
-        CurrentTime +=timeSlice;
+        // Determine the actual time slice for the current process
+        int timeSlice = min(RemainingTime[curr], ts);
+        gantt.push_back({processes[curr].id, CurrentTime, CurrentTime + timeSlice});
+        CurrentTime += timeSlice;
         RemainingTime[curr] -= timeSlice;
 
-        if(RemainingTime[curr]==0){
+        // If the process is completed
+        if (RemainingTime[curr] == 0)
+        {
             CompletedTask++;
-            ct[curr]= CurrentTime;
+            ct[curr] = CurrentTime;
             tat[curr] = ct[curr] - processes[curr].at;
             wt[curr] = tat[curr] - processes[curr].bt;
         }
-        else{
+        else
+        {
+            // Reinsert the current process at the end of the queue if it still has time left
+            for (int i = 0; i < n; i++)
+            {
+                if (processes[i].at <= CurrentTime && RemainingTime[i] > 0 && !inQueue[i])
+                {
+                    ReadyQue.push(i);
+                    inQueue[i] = true;
+                }
+            }
             ReadyQue.push(curr);
+            inQueue[curr] = true;
         }
     }
 }
+
 
 void printT(Process proc[], int n, int ct[], int tat[], int wt[])
 {
