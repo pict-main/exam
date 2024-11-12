@@ -1,193 +1,105 @@
-#include <iostream>
-#include <fstream>
-#include <sstream>
-#include <unordered_map>
-#include <vector>
-#include <string>
-#include <algorithm>
+import re as regex
+import json
 
-using namespace std;
+with open("./pass2/output/expCode.txt", "w") as file:
+    pass
+file.close()
 
-class MNTEntry {
-public:
-    MNTEntry() : name(""), pp(0), kp(0), mdtp(0), kpdtp(0) {}
-    MNTEntry(const string& name, int pp, int kp, int mdtp, int kpdtp)
-        : name(name), pp(pp), kp(kp), mdtp(mdtp), kpdtp(kpdtp) {}
+kpdtab = json.load(open("./pass-1/output/kpdtab.json"))
+mnt = json.load(open("./pass-1/output/mnt.json"))
+pntab = json.load(open("./pass-1/output/pntab.json"))
+mdt = open("./pass-1/output/mdt.txt", "r")
 
-    int getPp() const { return pp; }
-    int getKp() const { return kp; }
-    int getMdtp() const { return mdtp; }
-    int getKpdtp() const { return kpdtp; }
+callFile = open("./pass2/input/call.txt", "r")
 
-private:
-    string name;
-    int pp, kp, mdtp, kpdtp;
-};
+pattern = r'\s+'
 
-int main() {
-    ifstream irb("intermediate.txt");
-    if (!irb.is_open()) {
-        cerr << "Error opening intermediate.txt" << endl;
-        return 1;
-    }
+expCode = open("./pass2/output/expCode.txt", "a")
 
-    ifstream mdtb("mdt.txt");
-    if (!mdtb.is_open()) {
-        cerr << "Error opening mdt.txt" << endl;
-        return 1;
-    }
+def get_key(val, dict):
+    for key, value in dict.items():
+        if val == value:
+            return key
+    return None
 
-    ifstream kpdtb("kpdt.txt");
-    if (!kpdtb.is_open()) {
-        cerr << "Error opening kpdt.txt" << endl;
-        return 1;
-    }
+for line in callFile:
+    if line == "\n": continue
 
-    ifstream mntb("mnt.txt");
-    if (!mntb.is_open()) {
-        cerr << "Error opening mnt.txt" << endl;
-        return 1;
-    }
+    line = line.strip()
+    cmd = regex.split(pattern, line.rstrip())
 
-    ofstream fr("pass2.txt");
-    if (!fr.is_open()) {
-        cerr << "Error opening pass2.txt" << endl;
-        return 1;
-    }
+    macroName = cmd[0]
+    paramList = cmd[1:1:]
+    npp = 0
+    nkp = 0
+    mdtp = ""
+    kpdtp = ""
 
-    unordered_map<string, MNTEntry> mnt;
-    unordered_map<int, string> aptab;
-    unordered_map<string, int> aptabInverse;
+    aptab = pntab[macroName]
+    aptabIndex = 1
 
-    vector<string> mdt;
-    vector<string> kpdt;
+    for key, value in mnt.items():
+        if value["macroName"] == macroName:
+            mdtp = value["mdtp"]
+            npp = value["pp"]
+            nkp = value["kp"]
+            kpdtp = value["kpdtp"]
+            break
+    
+    if mdtp == "":
+        print("No such Macro exists. exiting the program......")
 
-    string line;
+    for parameter in paramList:
+        if(parameter[-1] == ","):
+            parameter = parameter.replace(",", "")
+        
+        if "=" in parameter:
+            equalIndex = parameter.split("=")[1]
+            paraName = parameter[0:equalIndex:1]
+            paraValue = parameter[equalIndex+1::]
+            aptab[get_key(paraName, aptab)] = paraValue
+        
+        else:
+            aptab[str(aptabIndex)] = parameter
+            aptabIndex+=1
 
-    // Read MDT file
-    while (getline(mdtb, line)) {
-        mdt.push_back(line);
-    }
+    if npp:
+        for key, value in kpdtab.items():
+            if value["macroName"] == macroName and value["defValue"] != "---":
+                if aptab[get_key(value["name"], aptab)]:
+                    aptab[get_key(value["name"],aptab)] = value["defValue"]
 
-    // Read KPDT file
-    while (getline(kpdtb, line)) {
-        kpdt.push_back(line);
-    }
+    macroStmts = []
+    currentLine = 0
+    for mdtLine in mdt:
+        currentLine += 1
+        if currentLine == mdtp:
+            macroStmts.append(mdtLine)
+            break
 
-    // Read MNT file
-    while (getline(mntb, line)) {
-        istringstream iss(line);
-        string parts[5];
-        for (int i = 0; i < 5; ++i) {
-            iss >> parts[i];
-        }
-        mnt[parts[0]] = MNTEntry(parts[0], stoi(parts[1]), stoi(parts[2]), stoi(parts[3]), stoi(parts[4]));
-    }
+    for mdtLine in mdt:
+        if "MEND" in mdtLine:
+            break
+        macroStmts.append(mdtLine)
 
-    // Process IRB file
-    while (getline(irb, line)) {
-        istringstream iss(line);
-        vector<string> parts;
-        string part;
-        while (iss >> part) {
-            parts.push_back(part);
-        }
+    for macroStatementIndex in range(len(macroStmts)):
+        macroStatement = regex.split(pattern, macroStmts[macroStatementIndex].rstrip())
 
-        if (mnt.find(parts[0]) != mnt.end()) {
-            const MNTEntry& entry = mnt[parts[0]];
-            int pp = entry.getPp();
-            int kp = entry.getKp();
-            int mdtp = entry.getMdtp();
-            int kpdtp = entry.getKpdtp();
-            int paramNo = 1;
+        for itemIndex in range(len(macroStatement)):
+            item = macroStatement[itemIndex]
 
-            // Process Parameters
-            for (int i = 0; i < pp; ++i) {
-                if (paramNo < parts.size()) {
-                    parts[paramNo] = parts[paramNo].substr(0, parts[paramNo].find(','));
-                    aptab[paramNo] = parts[paramNo];
-                    aptabInverse[parts[paramNo]] = paramNo;
-                    paramNo++;
-                }
-            }
+            if "(" in item:
+                pos = item.split(",")[1].replace(")", "")
+                replaceValue = aptab[pos]
+                macroStatement[itemIndex] = replaceValue
 
-            // Process KPDT
-            int j = kpdtp - 1;
-            for (int i = 0; i < kp; ++i) {
-                if (j >= 0 && j < kpdt.size()) {
-                    istringstream kpss(kpdt[j]);
-                    vector<string> kpParts;
-                    string kpPart;
-                    while (getline(kpss, kpPart, '\t')) {
-                        kpParts.push_back(kpPart);
-                    }
-                    if (kpParts.size() > 1) {
-                        aptab[paramNo] = kpParts[1];
-                        aptabInverse[kpParts[0]] = paramNo;
-                        j++;
-                        paramNo++;
-                    }
-                }
-            }
+        macroStatement[0] = "+" + macroStatement[0]
+        macroStmts[macroStatementIndex] = " ".join(macroStatement)
+        expCode.write(macroStmts[macroStatementIndex] + "\n")
 
-            // Process rest of the parameters
-            for (int i = pp + 1; i < parts.size(); ++i) {
-                parts[i] = parts[i].substr(0, parts[i].find(','));
-                size_t eqPos = parts[i].find('=');
-                if (eqPos != string::npos) {
-                    string name = parts[i].substr(0, eqPos);
-                    string value = parts[i].substr(eqPos + 1);
-                    name.erase(remove(name.begin(), name.end(), '&'), name.end());
-                    if (aptabInverse.find(name) != aptabInverse.end()) {
-                        aptab[aptabInverse[name]] = value;
-                    }
-                }
-            }
+    mdt.seek(0)
+    expCode.write("\n")
+    aptab = ""
+    mdtLine = ""
 
-            // Process MDT
-            int i = mdtp - 1;
-            while (i < mdt.size() && mdt[i] != "MEND") {
-                istringstream mdiss(mdt[i]);
-                vector<string> splits;
-                string split;
-                while (mdiss >> split) {
-                    splits.push_back(split);
-                }
-
-                fr << "+";
-                for (const string& s : splits) {
-                    if (s.find("(P,") != string::npos) {
-                        string numStr;
-                        for (char c : s) {
-                            if (isdigit(c)) numStr += c;
-                        }
-                        int num = stoi(numStr);
-                        if (aptab.find(num) != aptab.end()) {
-                            fr << aptab[num] << "\t";
-                        }
-                    } else {
-                        fr << s << "\t";
-                    }
-                }
-                fr << "\n";
-                i++;
-            }
-
-            aptab.clear();
-            aptabInverse.clear();
-        } else {
-            fr << line << "\n";
-        }
-    }
-
-    // Close files
-    fr.close();
-    mntb.close();
-    mdtb.close();
-    kpdtb.close();
-    irb.close();
-
-    cout << "Pass 2 processing done!" << endl;
-
-    return 0;
-}
+        
